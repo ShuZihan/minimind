@@ -35,7 +35,7 @@ agent trajectory 跨多轮搜索、阅读、编辑、测试。
 ## 2. 统计长度分布
 
 ```bash
-python - <<'PY'
+python3 - <<'PY'
 import json
 from pathlib import Path
 from transformers import AutoTokenizer

@@ -42,7 +42,7 @@ config 核心字段：
 ## 2. 导出
 
 ```bash
-python scripts/export_miniglm_hf.py \
+python3 scripts/export_miniglm_hf.py \
   --ckpt out/miniglm_2b_a0_6b/stage4_agent_sft_1536.pth \
   --tokenizer tokenizer/miniglm-32k \
   --config configs/miniglm_2b_a0_6b.json \
@@ -55,7 +55,7 @@ python scripts/export_miniglm_hf.py \
 ## 3. Transformers 加载检查
 
 ```bash
-python - <<'PY'
+python3 - <<'PY'
 from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
 
 path = "hf/mini-glm"

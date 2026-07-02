@@ -4,6 +4,13 @@
 
 这份手册不再把所有命令塞进一个长文档。训练是分阶段推进的：每一阶段解决一个清晰的问题，跑完后留下报告，再决定是否进入下一阶段。
 
+前置条件：
+
+```text
+必须先完成 00-engineering-migration.md。
+否则，只有当前 MiniMind smoke test 可执行；Mini-GLM 目标训练命令不可执行。
+```
+
 目标配置：
 
 ```text
@@ -24,6 +31,9 @@ inference target = vLLM OpenAI-compatible API
 ```
 
 ## 1. 阅读顺序
+
+0. [00-engineering-migration.md](00-engineering-migration.md)
+   先把当前 MiniMind 仓库改造成能识别 Mini-GLM 的工程结构。
 
 1. [00. 环境准备与最小链路验证](runbook/00-setup-and-smoke.md)
    先证明训练链路能跑通：目录、环境、模型接口、8 卡 smoke test、checkpoint。

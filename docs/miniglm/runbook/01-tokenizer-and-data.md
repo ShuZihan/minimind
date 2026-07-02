@@ -45,7 +45,7 @@ head -n 3 data/miniglm/tokenizer_corpus/train.jsonl
 开始训练：
 
 ```bash
-python trainer/train_tokenizer.py \
+python3 trainer/train_tokenizer.py \
   --input data/miniglm/tokenizer_corpus/train.jsonl \
   --vocab-size 32768 \
   --output-dir tokenizer/miniglm-32k
@@ -69,7 +69,7 @@ python trainer/train_tokenizer.py \
 验收 tokenizer：
 
 ```bash
-python - <<'PY'
+python3 - <<'PY'
 from transformers import AutoTokenizer
 
 tok = AutoTokenizer.from_pretrained("tokenizer/miniglm-32k")

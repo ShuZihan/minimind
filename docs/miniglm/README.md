@@ -2,15 +2,25 @@
 
 这组文档只围绕 Mini-GLM 的设计、训练和 vLLM 推理。
 
+除非某一节特别说明，所有命令都从仓库根目录开始执行。第一次进入服务器后，先运行：
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+export MINIMIND_ROOT="$(pwd)"
+```
+
 建议阅读顺序：
 
-1. [01-design-overview.md](01-design-overview.md)
+1. [00-engineering-migration.md](00-engineering-migration.md)
+   先看工程化改造：当前 MiniMind 仓库还不能直接训练 Mini-GLM，必须先接入模型工厂、Mini-GLM 模型实现、训练参数和导出脚本。
+
+2. [01-design-overview.md](01-design-overview.md)
    先看设计总览：模型规格、tokenizer、数据计划、训练阶段、导出和 vLLM 推理路线。
 
-2. [02-training-runbook.md](02-training-runbook.md)
+3. [02-training-runbook.md](02-training-runbook.md)
    再看执行手册索引：它把训练拆成若干阶段，告诉你今天该打开哪一篇。
 
-3. 分阶段 runbook：
+4. 分阶段 runbook：
    - [00. 环境准备与最小链路验证](runbook/00-setup-and-smoke.md)
    - [01. Tokenizer 与数据治理](runbook/01-tokenizer-and-data.md)
    - [02. Base Pretraining](runbook/02-base-pretraining.md)
@@ -22,6 +32,9 @@
 ## 文档职责
 
 ```text
+00-engineering-migration.md
+  回答“当前 MiniMind 仓库要先怎么改，Mini-GLM 命令才会真的可执行”。
+
 01-design-overview.md
   回答“为什么这么设计”。
 
