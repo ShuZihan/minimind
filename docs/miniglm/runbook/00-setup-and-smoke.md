@@ -56,6 +56,25 @@ python3 -m pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/si
 
 如果镜像里已经装过依赖，这条命令通常只会确认版本；如果缺少 `datasets`、`transformers`、`accelerate` 等包，它会在这里补齐。
 
+确认关键依赖能导入：
+
+```bash
+cd "$MINIMIND_ROOT"
+python3 - <<'PY'
+import torch
+import datasets
+import transformers
+import modelscope
+
+print("torch", torch.__version__, "cuda", torch.cuda.is_available())
+print("datasets", datasets.__version__)
+print("transformers", transformers.__version__)
+print("modelscope", modelscope.__version__)
+PY
+```
+
+如果这里 `torch.cuda.is_available()` 是 `False`，先处理容器 GPU 挂载、CUDA 驱动或 PyTorch CUDA 版本，不要继续跑 8 卡训练命令。
+
 ## 3. 下载官方数据并生成 smoke 数据
 
 MiniMind 官方数据不在仓库里，需要单独下载。官方 README 推荐从 ModelScope 或 Hugging Face 下载，并把数据放到 `./dataset/`。第一轮只需要 `pretrain_t2t_mini.jsonl`，它是预训练 smoke test 的来源。
@@ -256,6 +275,8 @@ torchrun --nproc_per_node 8:
 完成模型工厂、`model/model_miniglm.py`、结构参数 CLI 和导出脚本后，再运行下面这类命令。
 
 ```bash
+cd "$MINIMIND_ROOT"
+
 torchrun --nproc_per_node 8 trainer/train_pretrain.py \
   --model-name mini-glm \
   --tokenizer-path tokenizer/miniglm-32k \

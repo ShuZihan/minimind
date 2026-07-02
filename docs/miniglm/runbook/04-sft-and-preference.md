@@ -4,6 +4,67 @@
 
 预训练让模型“会读代码”，SFT 才开始教它“按任务修代码”。这里分三步：先学直接输出 patch，再学按工具流程解决问题，最后用测试反馈做偏好优化。
 
+先回到仓库根目录，并准备最小可跑样本：
+
+```bash
+cd "${MINIMIND_ROOT:-$(git rev-parse --show-toplevel)}"
+export MINIMIND_ROOT="$(pwd)"
+test -f tokenizer/miniglm-32k/tokenizer.json
+ls out/miniglm_2b_a0_6b/stage2_repo_32k* >/dev/null
+mkdir -p data/miniglm/sft_issue_patch data/miniglm/sft_agent_trajectory data/miniglm/preference_pairs
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+def msg(role, content):
+    return {
+        "role": role,
+        "content": content,
+        "reasoning_content": "",
+        "tools": "",
+        "tool_calls": "",
+    }
+
+issue_patch = Path("data/miniglm/sft_issue_patch/train.jsonl")
+agent = Path("data/miniglm/sft_agent_trajectory/train.jsonl")
+pref = Path("data/miniglm/preference_pairs/train.jsonl")
+
+if not issue_patch.exists():
+    issue_patch.write_text(json.dumps({
+        "conversations": [
+            msg("system", "You are a coding assistant. Produce a minimal unified diff."),
+            msg("user", "Fix add(a, b) so it returns a + b."),
+            msg("assistant", "diff --git a/src/a.py b/src/a.py\n--- a/src/a.py\n+++ b/src/a.py\n@@ -1,2 +1,2 @@\n def add(a, b):\n-    return a - b\n+    return a + b\n"),
+        ]
+    }, ensure_ascii=False) + "\n", encoding="utf-8")
+
+if not agent.exists():
+    agent.write_text(json.dumps({
+        "conversations": [
+            msg("system", "You are a coding agent. Use tools to inspect and fix the repository."),
+            msg("user", "Fix add(a, b)."),
+            msg("assistant", "<tool_call>\n{\"name\":\"read_file\",\"arguments\":{\"path\":\"src/a.py\"}}\n</tool_call>"),
+            msg("tool", "def add(a, b):\n    return a - b\n"),
+            msg("assistant", "Final patch:\ndiff --git a/src/a.py b/src/a.py\n--- a/src/a.py\n+++ b/src/a.py\n@@ -1,2 +1,2 @@\n def add(a, b):\n-    return a - b\n+    return a + b\n"),
+        ]
+    }, ensure_ascii=False) + "\n", encoding="utf-8")
+
+if not pref.exists():
+    pref.write_text(json.dumps({
+        "chosen": [
+            {"role": "user", "content": "Fix add(a, b)."},
+            {"role": "assistant", "content": "return a + b"},
+        ],
+        "rejected": [
+            {"role": "user", "content": "Fix add(a, b)."},
+            {"role": "assistant", "content": "return a - b"},
+        ],
+    }, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+```
+
+这三个小文件只用于验证格式和训练链路。正式训练时，应替换为清洗后的 SWE-smith、自建 issue/PR、工具轨迹和测试反馈数据。
+
 ## 1. Issue-to-patch SFT
 
 目标：输入 issue、repo context、相关文件、失败测试，输出 unified diff。
@@ -65,7 +126,11 @@ torchrun --nproc_per_node 8 trainer/train_full_sft.py \
 先做格式评估：
 
 ```bash
-git apply --check predicted.patch
+if test -f predicted.patch; then
+  git apply --check predicted.patch
+else
+  echo "predicted.patch not found; save one model output to predicted.patch before running git apply --check"
+fi
 ```
 
 `git apply --check` 只检查补丁能否应用，不会修改文件。patch 格式都过不了时，不要急着看测试通过率。

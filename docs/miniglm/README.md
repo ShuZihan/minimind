@@ -9,7 +9,23 @@ cd "$(git rev-parse --show-toplevel)"
 export MINIMIND_ROOT="$(pwd)"
 ```
 
-建议阅读顺序：
+## 执行顺序
+
+如果目的是“照着跑”，按这个顺序来：
+
+```text
+1. runbook/00-setup-and-smoke.md 的第 1-5 节：环境、依赖、官方数据、当前 MiniMind smoke test。
+2. 00-engineering-migration.md 的第 2-9 节：补齐 Mini-GLM 所需工程接口。
+3. runbook/01-tokenizer-and-data.md：训练 32K tokenizer，并生成 base pretraining 最小可跑文件。
+4. 00-engineering-migration.md 的 Mini-GLM 目标 smoke 命令。
+5. 从 runbook/02-base-pretraining.md 开始进入正式训练阶段。
+```
+
+不要把所有 Markdown 代码块当作一整段 shell 脚本顺序粘贴。带 `python` 的代码块是要写进源码的片段；带 `text/json/markdown` 的代码块是格式说明。
+
+## 阅读顺序
+
+如果目的是先理解设计，再执行，建议阅读顺序：
 
 1. [00-engineering-migration.md](00-engineering-migration.md)
    先看工程化改造：当前 MiniMind 仓库还不能直接训练 Mini-GLM，必须先接入模型工厂、Mini-GLM 模型实现、训练参数和导出脚本。

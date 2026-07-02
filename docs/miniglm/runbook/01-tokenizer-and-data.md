@@ -4,6 +4,21 @@
 
 从零预训练前，先把两件事固定下来：词表和数据边界。词表一旦开始训练模型就不要再改；数据一旦进入训练集，就要能追溯来源、许可证、仓库、commit 和 split。
 
+先回到仓库根目录：
+
+```bash
+cd "${MINIMIND_ROOT:-$(git rev-parse --show-toplevel)}"
+export MINIMIND_ROOT="$(pwd)"
+```
+
+前置条件：
+
+```text
+1. 已完成 runbook/00-setup-and-smoke.md 的依赖安装和官方数据下载。
+2. 已完成 00-engineering-migration.md 中 train_tokenizer.py 的 CLI 改造。
+3. dataset/pretrain_t2t_mini.jsonl 已存在。
+```
+
 ## 1. 训练 32K tokenizer
 
 目标是固定 Mini-GLM 的 tokenizer：
@@ -34,9 +49,40 @@ traceback / pytest / terminal logs
 tool_call / tool_response / think 标签
 ```
 
+先从官方预训练数据生成一个最小可跑的 tokenizer 训练语料。它不是最终语料，只是保证第一轮命令可以闭合：
+
+```bash
+cd "$MINIMIND_ROOT"
+python3 - <<'PY'
+from pathlib import Path
+
+src = Path("dataset/pretrain_t2t_mini.jsonl")
+dst = Path("data/miniglm/tokenizer_corpus/train.jsonl")
+target_bytes = 200 * 1024 * 1024
+
+if not src.exists():
+    raise SystemExit(f"missing {src}; finish runbook/00 data download first")
+
+dst.parent.mkdir(parents=True, exist_ok=True)
+written = 0
+with src.open("rb") as fin, dst.open("wb") as fout:
+    for line in fin:
+        if not line.strip():
+            continue
+        fout.write(line)
+        written += len(line)
+        if written >= target_bytes:
+            break
+
+print(dst, written, "bytes")
+PY
+```
+
 先看前三行：
 
 ```bash
+cd "$MINIMIND_ROOT"
+test -s data/miniglm/tokenizer_corpus/train.jsonl
 head -n 3 data/miniglm/tokenizer_corpus/train.jsonl
 ```
 
@@ -45,13 +91,14 @@ head -n 3 data/miniglm/tokenizer_corpus/train.jsonl
 开始训练：
 
 ```bash
+cd "$MINIMIND_ROOT"
 python3 trainer/train_tokenizer.py \
   --input data/miniglm/tokenizer_corpus/train.jsonl \
   --vocab-size 32768 \
   --output-dir tokenizer/miniglm-32k
 ```
 
-如果当前脚本还没有这些参数，先把 `trainer/train_tokenizer.py` 的硬编码常量改成 CLI。
+如果这里出现 `unrecognized arguments`，说明你还没完成 [../00-engineering-migration.md](../00-engineering-migration.md) 中 `train_tokenizer.py` 的 CLI 改造。先回去补，不要继续往后跑。
 
 这条命令怎么读：
 
@@ -69,6 +116,7 @@ python3 trainer/train_tokenizer.py \
 验收 tokenizer：
 
 ```bash
+cd "$MINIMIND_ROOT"
 python3 - <<'PY'
 from transformers import AutoTokenizer
 
@@ -100,7 +148,67 @@ diff/traceback 不被切得过碎。
 chat_template 存在并能 apply_chat_template。
 ```
 
-## 2. 建立数据审计
+## 2. 准备 base pretraining 最小可跑文件
+
+下一阶段会用到：
+
+```text
+data/miniglm/pretrain_base/train_100m.jsonl
+data/miniglm/pretrain_base/train.jsonl
+data/miniglm/pretrain_base/valid.jsonl
+```
+
+先用官方 `pretrain_t2t_mini.jsonl` 建一个最小可跑版本。正式训练时，你可以把这些文件替换为清洗后的 Mini-GLM 数据。
+
+```bash
+cd "$MINIMIND_ROOT"
+mkdir -p data/miniglm/pretrain_base
+ln -sfn ../../../dataset/pretrain_t2t_mini.jsonl data/miniglm/pretrain_base/train.jsonl
+python3 - <<'PY'
+from pathlib import Path
+
+src = Path("dataset/pretrain_t2t_mini.jsonl")
+train_100m = Path("data/miniglm/pretrain_base/train_100m.jsonl")
+valid = Path("data/miniglm/pretrain_base/valid.jsonl")
+
+if not src.exists():
+    raise SystemExit(f"missing {src}; finish runbook/00 data download first")
+
+def copy_bytes(dst, target_bytes, skip_bytes=0):
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    written = 0
+    skipped = 0
+    with src.open("rb") as fin, dst.open("wb") as fout:
+        for line in fin:
+            if skipped < skip_bytes:
+                skipped += len(line)
+                continue
+            if not line.strip():
+                continue
+            fout.write(line)
+            written += len(line)
+            if written >= target_bytes:
+                break
+    print(dst, written, "bytes")
+
+copy_bytes(train_100m, 100 * 1024 * 1024)
+copy_bytes(valid, 10 * 1024 * 1024, skip_bytes=100 * 1024 * 1024)
+PY
+ls -lh data/miniglm/pretrain_base/train.jsonl \
+       data/miniglm/pretrain_base/train_100m.jsonl \
+       data/miniglm/pretrain_base/valid.jsonl
+```
+
+过关标准：
+
+```text
+tokenizer/miniglm-32k/tokenizer.json 存在。
+data/miniglm/pretrain_base/train.jsonl 存在。
+data/miniglm/pretrain_base/train_100m.jsonl 存在。
+data/miniglm/pretrain_base/valid.jsonl 存在。
+```
+
+## 3. 建立数据审计
 
 训练数据不是“能下载就能训”。尤其你想参与 SWE-bench 一类测评时，训练集必须能证明没有污染官方评测集。
 

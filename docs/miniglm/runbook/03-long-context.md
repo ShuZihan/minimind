@@ -6,6 +6,27 @@
 
 这一阶段从 8K 开始，逐步走到 64K。
 
+先回到仓库根目录：
+
+```bash
+cd "${MINIMIND_ROOT:-$(git rev-parse --show-toplevel)}"
+export MINIMIND_ROOT="$(pwd)"
+test -f tokenizer/miniglm-32k/tokenizer.json
+ls out/miniglm_2b_a0_6b/stage1_base_4k* >/dev/null
+```
+
+如果只是做流程 smoke，可以先把 base 数据链接成 repo context 输入，验证命令、checkpoint 和显存路径能闭合：
+
+```bash
+cd "$MINIMIND_ROOT"
+mkdir -p data/miniglm/repo_context
+ln -sfn ../pretrain_base/train.jsonl data/miniglm/repo_context/train.jsonl
+ln -sfn ../pretrain_base/train.jsonl data/miniglm/repo_context/train_long_32k.jsonl
+ln -sfn ../pretrain_base/train.jsonl data/miniglm/repo_context/train_long_64k.jsonl
+```
+
+这只是工程 smoke，不是合格的长上下文训练数据。正式训练前，应替换为真实 repo tree、多文件源码、traceback、issue、测试日志和 agent trajectory 组合出来的长样本。
+
 ## 1. 长度课程
 
 ```text

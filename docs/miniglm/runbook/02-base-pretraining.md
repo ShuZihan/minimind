@@ -6,6 +6,18 @@ Base pretraining 是让模型先学会语言、代码和常见工程文本的分
 
 建议先跑短序列，因为短序列吞吐高，能快速验证数据质量和训练稳定性。
 
+先回到仓库根目录并检查上一阶段产物：
+
+```bash
+cd "${MINIMIND_ROOT:-$(git rev-parse --show-toplevel)}"
+export MINIMIND_ROOT="$(pwd)"
+test -f tokenizer/miniglm-32k/tokenizer.json
+test -s data/miniglm/pretrain_base/train_100m.jsonl
+test -e data/miniglm/pretrain_base/train.jsonl
+```
+
+如果这里失败，先回到 [01-tokenizer-and-data.md](01-tokenizer-and-data.md)，不要直接跑训练命令。
+
 ## 1. 长度与预算
 
 ```text

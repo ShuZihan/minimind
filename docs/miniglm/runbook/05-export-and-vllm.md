@@ -6,6 +6,25 @@
 
 这一步的核心是把训练世界和推理世界接起来。
 
+先回到仓库根目录，并检查导出输入：
+
+```bash
+cd "${MINIMIND_ROOT:-$(git rev-parse --show-toplevel)}"
+export MINIMIND_ROOT="$(pwd)"
+test -f scripts/export_miniglm_hf.py
+test -f tokenizer/miniglm-32k/tokenizer.json
+test -f configs/miniglm_2b_a0_6b.json
+ls out/miniglm_2b_a0_6b/stage4_agent_sft_1536*.pth >/dev/null
+```
+
+启动 vLLM 前再检查命令是否存在：
+
+```bash
+command -v vllm
+```
+
+如果 `command -v vllm` 没有输出，说明当前训练镜像不带 vLLM。切到 vLLM 镜像或先安装 vLLM 后再执行 serve 命令。
+
 ## 1. 目标目录
 
 ```text
@@ -101,6 +120,8 @@ vllm serve hf/mini-glm \
 
 检查服务：
 
+保持上面的 `vllm serve` 进程运行，另开一个终端执行：
+
 ```bash
 curl http://localhost:8998/v1/models
 ```
@@ -108,6 +129,8 @@ curl http://localhost:8998/v1/models
 这个请求只确认服务是否启动、模型名是否注册成功。
 
 基础请求：
+
+仍然在第二个终端执行：
 
 ```bash
 curl http://localhost:8998/v1/chat/completions \

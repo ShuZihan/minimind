@@ -7,8 +7,11 @@
 前置条件：
 
 ```text
-必须先完成 00-engineering-migration.md。
-否则，只有当前 MiniMind smoke test 可执行；Mini-GLM 目标训练命令不可执行。
+当前 MiniMind smoke test:
+  只需要先完成 runbook/00-setup-and-smoke.md 的依赖安装和数据准备。
+
+Mini-GLM 目标训练命令:
+  必须先完成 00-engineering-migration.md 和 runbook/01-tokenizer-and-data.md。
 ```
 
 目标配置：
@@ -32,11 +35,11 @@ inference target = vLLM OpenAI-compatible API
 
 ## 1. 阅读顺序
 
-0. [00-engineering-migration.md](00-engineering-migration.md)
-   先把当前 MiniMind 仓库改造成能识别 Mini-GLM 的工程结构。
+0. [00. 环境准备与最小链路验证](runbook/00-setup-and-smoke.md)
+   先跑第 1-5 节，证明当前 MiniMind 训练链路能跑通。
 
-1. [00. 环境准备与最小链路验证](runbook/00-setup-and-smoke.md)
-   先证明训练链路能跑通：目录、环境、模型接口、8 卡 smoke test、checkpoint。
+1. [00-engineering-migration.md](00-engineering-migration.md)
+   再把当前 MiniMind 仓库改造成能识别 Mini-GLM 的工程结构。
 
 2. [01. Tokenizer 与数据治理](runbook/01-tokenizer-and-data.md)
    固定 32K tokenizer，建立数据 manifest 和 SWE-bench 黑名单。

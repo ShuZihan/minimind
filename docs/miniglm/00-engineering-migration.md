@@ -20,9 +20,10 @@ export MINIMIND_ROOT="$(pwd)"
 2. 安装 requirements.txt。
 3. 下载 MiniMind 官方预训练数据，生成 smoke_10m.jsonl。
 4. 跑当前 MiniMind smoke test，确认容器、数据、DDP 和 checkpoint 没问题。
-5. 按本文第 2-8 节改工程接口，每改完一节就跑该节验证命令。
-6. 全部验证通过后，再跑 Mini-GLM 目标 smoke 训练。
-7. 目标 smoke 通过后，再进入正式训练 runbook。
+5. 按本文第 2-9 节改工程接口，每改完一节就跑该节验证命令。
+6. 完成 runbook/01-tokenizer-and-data.md，训练 tokenizer/miniglm-32k，并生成 train_100m.jsonl / train.jsonl。
+7. 全部验证通过后，再跑 Mini-GLM 目标 smoke 训练。
+8. 目标 smoke 通过后，再进入正式训练 runbook。
 ```
 
 ## 0. 命令可执行性约定
@@ -236,7 +237,83 @@ python3 train_pretrain.py \
 
 这条命令会真的开始训练一个极小模型。如果只想验证参数解析，先按 `Ctrl+C` 停掉；如果数据只有 10MB，也可以让它跑完。
 
-## 4. 第三步：引入模型工厂
+## 4. 第三步：把 tokenizer 训练脚本参数化
+
+当前 `trainer/train_tokenizer.py` 是学习脚本，默认使用硬编码常量：
+
+```text
+DATA_PATH = '../dataset/sft_t2t_mini.jsonl'
+TOKENIZER_DIR = '../model_learn_tokenizer/'
+VOCAB_SIZE = 6400
+```
+
+Mini-GLM 需要 32K tokenizer，所以这里必须先把 tokenizer 训练脚本改成 CLI。否则 [runbook/01-tokenizer-and-data.md](runbook/01-tokenizer-and-data.md) 里的命令会直接报 `unrecognized arguments`。
+
+修改文件：
+
+```text
+trainer/train_tokenizer.py
+```
+
+先让 `get_texts` 同时支持预训练 JSONL 的 `text` 字段和 SFT JSONL 的 `conversations` 字段：
+
+```python
+def get_texts(data_path):
+    with open(data_path, 'r', encoding='utf-8', errors='ignore') as f:
+        for line in f:
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if data.get("text"):
+                yield data["text"]
+                continue
+
+            contents = [item.get('content') for item in data.get('conversations', []) if item.get('content')]
+            if contents:
+                yield "\n".join(contents)
+```
+
+再把文件底部的：
+
+```python
+if __name__ == '__main__':
+    train_tokenizer(DATA_PATH, TOKENIZER_DIR, VOCAB_SIZE)
+    eval_tokenizer(TOKENIZER_DIR)
+```
+
+改成：
+
+```python
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Train MiniMind/Mini-GLM tokenizer")
+    parser.add_argument("--input", type=str, default=DATA_PATH, help="训练 tokenizer 的 JSONL 文件")
+    parser.add_argument("--vocab-size", "--vocab_size", dest="vocab_size", type=int, default=VOCAB_SIZE, help="词表大小")
+    parser.add_argument("--output-dir", "--output_dir", dest="output_dir", type=str, default=TOKENIZER_DIR, help="tokenizer 输出目录")
+    args = parser.parse_args()
+
+    train_tokenizer(args.input, args.output_dir, args.vocab_size)
+    eval_tokenizer(args.output_dir)
+```
+
+阶段验证命令：
+
+```bash
+cd "$MINIMIND_ROOT"
+python3 trainer/train_tokenizer.py -h | grep -E 'input|vocab-size|output-dir'
+```
+
+通过标准：
+
+```text
+能看到 --input、--vocab-size、--output-dir。
+不会出现 unrecognized arguments。
+```
+
+## 5. 第四步：引入模型工厂
 
 现在训练脚本硬编码 `MiniMindConfig` 和 `MiniMindForCausalLM`。要支持 Mini-GLM，先把“训练脚本选择哪个模型”抽成工厂。
 
@@ -367,7 +444,7 @@ PY
 输出 minimind MiniMindForCausalLM。
 ```
 
-## 5. 第四步：先加 Mini-GLM 配置，不急着训练
+## 6. 第五步：先加 Mini-GLM 配置，不急着训练
 
 先创建 Mini-GLM 的 config，让模型规格有一个清晰入口。此时可以只实现配置类，不要急着跑训练。
 
@@ -475,7 +552,7 @@ PY
 输出 32768 1536 16 2。
 ```
 
-## 6. 第五步：实现 MiniGLMForCausalLM
+## 7. 第六步：实现 MiniGLMForCausalLM
 
 这一步才是真正的模型实现。不要用空壳类伪装完成，否则训练能启动但不是 Mini-GLM。
 
@@ -540,7 +617,7 @@ loss 是有限数值。
 logits shape 是 torch.Size([2, 16, 128])。
 ```
 
-## 7. 第六步：checkpoint 保存完整 config
+## 8. 第七步：checkpoint 保存完整 config
 
 当前权重文件名主要依赖 `hidden_size` 和 `_moe` 后缀。Mini-GLM 参数更多，不能只靠文件名判断结构。
 
@@ -589,7 +666,7 @@ out/miniglm_2b_a0_6b/checkpoint_check_128.pth 存在。
 同目录能看到对应 config/meta 文件。
 ```
 
-## 8. 第七步：实现 Hugging Face 导出
+## 9. 第八步：实现 Hugging Face 导出
 
 新增：
 
@@ -659,12 +736,15 @@ model_type 是 glm_moe_dsa。
 cfg.vocab_size == len(tokenizer)。
 ```
 
-## 9. 第八步：再运行 Mini-GLM 目标训练命令
+## 10. 第九步：再运行 Mini-GLM 目标训练命令
 
 只有完成前面所有阶段后，下面的命令才应该可执行：
 
 ```bash
 cd "$MINIMIND_ROOT"
+test -f tokenizer/miniglm-32k/tokenizer.json
+test -f tokenizer/miniglm-32k/tokenizer_config.json
+test -f data/miniglm/pretrain_base/smoke_10m.jsonl
 
 torchrun --nproc_per_node 8 trainer/train_pretrain.py \
   --model-name mini-glm \
@@ -695,13 +775,16 @@ torchrun --nproc_per_node 8 trainer/train_pretrain.py \
 通过标准：
 
 ```text
+三个 test -f 检查通过。
 参数解析通过。
 模型初始化成功。
 loss 是有限数值。
 out/miniglm_2b_a0_6b/stage0_smoke_1536*.pth 生成。
 ```
 
-## 10. 你应该如何学习这条路线
+如果 `tokenizer/miniglm-32k/tokenizer.json` 不存在，先完成 [runbook/01-tokenizer-and-data.md](runbook/01-tokenizer-and-data.md)；不要临时把 `--tokenizer-path` 改成别的目录糊过去。
+
+## 11. 你应该如何学习这条路线
 
 不要一次性改完。建议按下面节奏：
 
