@@ -40,6 +40,58 @@ nvidia-smi
 python3 -m pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple
 ```
 
+先记录 Hugging Face 相关包版本，并单独测试 `transformers.activations`。这一步看似小，其实很关键：`train_pretrain.py -h` 也会先导入模型代码，如果 `transformers` 的可选 kernel 依赖组合不兼容，连帮助信息都打印不出来。
+
+```bash
+cd "$MINIMIND_ROOT"
+python3 - <<'PY'
+import importlib.metadata as metadata
+
+for name in ["transformers", "huggingface_hub", "kernels", "trl"]:
+    try:
+        print(name, metadata.version(name))
+    except metadata.PackageNotFoundError:
+        print(name, "NOT INSTALLED")
+
+from transformers.activations import ACT2FN
+print("transformers.activations ok", "gelu" in ACT2FN)
+PY
+```
+
+如果这里报下面这类错误：
+
+```text
+huggingface_hub.errors.StrictDataclassFieldValidationError:
+Validation error for field 'import_name':
+    TypeError: Unsupported type for field 'import_name': str | None
+```
+
+这是 `transformers -> kernels -> huggingface_hub` 的版本组合问题，不是训练脚本参数问题。先把 `kernels` 固定到已知可用版本，再重跑导入检查：
+
+```bash
+cd "$MINIMIND_ROOT"
+python3 -m pip install --no-deps "kernels==0.12.1" -i https://mirrors.aliyun.com/pypi/simple
+
+python3 - <<'PY'
+import importlib.metadata as metadata
+
+for name in ["transformers", "huggingface_hub", "kernels", "trl"]:
+    try:
+        print(name, metadata.version(name))
+    except metadata.PackageNotFoundError:
+        print(name, "NOT INSTALLED")
+
+from transformers.activations import ACT2FN
+print("transformers.activations ok", "gelu" in ACT2FN)
+PY
+```
+
+如果镜像源没有 `kernels==0.12.1`，直接走 PyPI：
+
+```bash
+python3 -m pip install --no-deps "kernels==0.12.1"
+```
+
 确认关键依赖能导入：
 
 ```bash
